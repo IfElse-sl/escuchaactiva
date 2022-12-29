@@ -1,0 +1,24 @@
+{
+	"contacto_ifelse":{
+		"host":"smtp.zoho.com",
+		"port":587,
+		"secure":false,
+		"auth":{
+			"user": "contacto@ifelse.com.ar",
+			"pass": "Ifelse.123"
+		},
+		"comentado":{
+			"ignoreTLS":true
+		}
+	},
+	"no_reply_uma":{
+		"host":"200.9.237.3",
+		"port":25,
+		"secure":false,
+		"ignoreTLS":true,
+		"auth":{
+			"user":"no-reply@union-matematica.org.ar",
+			"pass":""
+		}
+	}
+}
