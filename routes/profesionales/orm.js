@@ -41,6 +41,8 @@ const model=conn=>{
     edad_max:Sequelize.INTEGER,
     religion:Sequelize.STRING,
     titulo:Sequelize.STRING,
+    clientID:Sequelize.STRING,
+    secret:Sequelize.STRING,
     constancia_monotributo:Sequelize.STRING,
     tipo_atencion:Sequelize.ENUM('TELEFONICA', 'VIDEOLLAMADA', 'TELEFONICA/VIDEOLLAMADA'),
     puntaje:Sequelize.FLOAT,

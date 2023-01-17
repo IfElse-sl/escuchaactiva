@@ -1,9 +1,12 @@
 const 	router=require('express').Router(),
 		Sequelize = require('sequelize'),
 		Op=Sequelize.Op,
+		dotenv=require('dotenv'),
+		CryptoJS=require('crypto-js'),
 		end=require('../functions').end,
 		enviarEmail=require('../functions').enviarEmail,
-		obj='PROFESIONAL'
+		obj='PROFESIONAL';
+	dotenv.config();
 
 router.all('/*',(req,res,next)=>{
 	const modulo=req.originalUrl.split('/')
@@ -102,10 +105,14 @@ router.get('/mejor-puntaje/f/:f/t/:t/l/:l',(req,res)=>{
 
 
 /*------------------------POST--------------------------*/
+function encrypt(data){
+	return CryptoJS.AES.encrypt(data, process.env.KEY).toString();
+}
+
 router.post('/',(req,res)=>{
 	const 	body=req.body,
 			Profesional=req.models.Profesional,
-			Credencial=req.models.Credencial
+			Credencial=req.models.Credencial;
 	body.credencial.codigo='U-'+String(Math.random()).slice(-5)
 
 	res.locals.conn.transaction().then(tr=>{
@@ -125,6 +132,8 @@ router.post('/',(req,res)=>{
 			titulo:body.titulo,
 			tipo_atencion:body.tipo_atencion,
 			resumen:body.resumen,
+			clientID:encrypt(body.clientID),
+			secret:encrypt(body.secret),
 			informacion:body.informacion,
 			credencial:body.credencial
 		},{

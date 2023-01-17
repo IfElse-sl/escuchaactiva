@@ -1,6 +1,8 @@
 const 	router=require('express').Router(),
 		Sequelize = require('sequelize'),
 		Op=Sequelize.Op,
+		PaymentController = require("./paypal/payment.controller"), 
+		controller = new PaymentController(),
 		end=require('../functions').end,
 		enviarEmail=require('../functions').enviarEmail,
 		obj='SESION'
@@ -60,7 +62,12 @@ router.get('/pacienteID/:id/f/:f/t/:t/p/:p/l/:l',(req,res)=>{
 })
 
 
+
 /*------------------------POST--------------------------*/
+router.post('/link-paypal',controller.crearOrden);
+router.post('/devolucion',controller.devolucionOrden)
+router.get('/capturar-orden',controller.capturarOrden);
+
 router.post('/',(req,res)=>{
 	const 	body=req.body,
 			Sesion=req.models.Sesion,

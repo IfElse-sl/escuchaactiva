@@ -22,8 +22,8 @@ const model=conn=>{
     fechaPago:Sequelize.DATE,
     paypalID:Sequelize.STRING,
     url_pago:Sequelize.STRING,
-    url_exito:Sequelize.STRING,
-    url_rechazo:Sequelize.STRING,
+    order:Sequelize.STRING,
+    token_order:Sequelize.STRING,
     estado: Sequelize.ENUM('ACTIVO', 'INACTIVO', 'BAJA', 'PENDIENTE', 'PAGADO', 'RECHAZADO', 'CANCELADO'),
     createdAt: Sequelize.DATE,
     updatedAt: Sequelize.DATE
