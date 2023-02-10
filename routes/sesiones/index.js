@@ -3,6 +3,7 @@ const 	router=require('express').Router(),
 		Op=Sequelize.Op,
 		PaymentController = require("./paypal/payment.controller"), 
 		controller = new PaymentController(),
+		config=require('../../../config'),
 		end=require('../functions').end,
 		enviarEmail=require('../functions').enviarEmail,
 		obj='SESION'

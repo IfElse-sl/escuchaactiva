@@ -1,30 +1,32 @@
-const dotenv = require("dotenv");
-const axios = require("axios");
-const { encryp, descrypt, sumarDias } = require('./utils')
-dotenv.config();
-const { Op } = require('sequelize')
-const BASE_URL = process.env.URL_PAYPAL;
+const   axios = require("axios"),
+        config=require('../../../../config'),
+        { encryp, descrypt, sumarDias } = require('./utils'),
+        {Op} = require('sequelize'),
+        BASE_URL=config.URL_PAYPAL
+
 let tokenAuth;
 class PaymentController {
     constructor() { }
 
     async crearOrden(req, res) {
-        const url = BASE_URL + '/v2/checkout/orders';
-        const body = req.body;
-        const Pago = req.models.Pago;
-        const Profesional = req.models.Profesional;
-        try {
+        const   url=BASE_URL+'/v2/checkout/orders',
+                body=req.body,
+                Pago=req.models.Pago,
+                Profesional=req.models.Profesional
+        try{
             const profesional = await Profesional.findOne({
                 attributes: ['secret', "clientID"],
                 where: {
-                    ID: body.reference.profesionalID,
-                    estado: { [Op.not]: 'BAJA' }
+                    ID:body.reference.profesionalID,
+                    clientID:{[Op.not]:null},
+                    secret:{[Op.not]:null},
+                    estado:{[Op.not]:'BAJA'}
                 }
             })
-            if (!profesional.get('secret') || !profesional.get('clientID')) return res.json({
-                code:404,
-                msg: "El profesional no tiene las credenciales o no existe"
-            })
+            if (!profesional){
+                res.json({code:404,msg:"El profesional no tiene las credenciales o no existe"})
+                return false
+            }
             const order = {
                 intent: 'CAPTURE',
                 purchase_units: [{
@@ -52,105 +54,95 @@ class PaymentController {
                     ]
                 }],
                 application_context: {
-                    brand_name: 'Ifelse',
-                    landing_page: 'LOGIN',
-                    user_action: 'PAY_NOW',
-                    return_url: "http://localhost:4000/api/sesiones/capturar-orden",
-                    cancel_url: "http://localhost:4000/api/cancelar-orden"
+                    brand_name:'Ifelse',
+                    landing_page:'LOGIN',
+                    user_action:'PAY_NOW',
+                    return_url:"http://localhost:4000/api/sesiones/capturar-orden",
+                    cancel_url:"http://localhost:4000/api/cancelar-orden"
                 }
             }
             
             //Colocar los siguientes valores a la url que estan codificado
             const params = new URLSearchParams();
             params.append("grant_type", "client_credentials");
-            const { data: { access_token } } = await axios.post('https://api-m.sandbox.paypal.com/v1/oauth2/token', params, {
-                headers: {
+            const {data:{access_token}}=await axios.post('https://api-m.sandbox.paypal.com/v1/oauth2/token',params,{
+                headers:{
                     'Content-Type': 'application/x-www-form-urlencoded'
                 },
-                auth: {
-                    username: descrypt(profesional.get("clientID")),
-                    password: descrypt(profesional.get("secret"))
+                auth:{
+                    username:descrypt(profesional.get("clientID")),
+                    password:descrypt(profesional.get("secret"))
                 }
             })
 
-            const response = await axios.post(url, order, {
-                headers: {
+            const response=await axios.post(url,order,{
+                headers:{
                     "Content-Type": 'application/json',
                     Authorization: `Bearer ${access_token}`
-                },
-            });
+                }
+            })
             const ID = body.reference.pagoID;
             const url_pago = response.data.links.filter(elem => elem.rel === 'approve').pop().href;
             await Pago.update({
                 url_pago,
                 order: url_pago.split('=').pop(),
                 token_order: encryp(access_token)
-            }, {
-                where: {
-                    ID
-                }
+            },{
+                where:{ID}
             })
-            res.json({
-                code: 201,
-                url: url_pago
-            })
-        } catch (error) {
-            console.log(error);
+            res.json({code: 201,url: url_pago})
+        }catch(error){
+            console.log(error)
             res.status(500).send('Error en crear orden')
         }
     }
 
-    async capturarOrden(req, res) {
-        try {
-            const Sesion = req.models.Sesion,
-                Pago = req.models.Pago;
-            const { token } = req.query;
-            const url = `${BASE_URL}/v2/checkout/orders/${token}/capture`;
+    async capturarOrden(req,res){
+        try{
+            const Sesion=req.models.Sesion,
+                    Pago=req.models.Pago,
+                    {token}=req.query,
+                    url=`${BASE_URL}/v2/checkout/orders/${token}/capture`;
             //busco token
-            const pago = await Pago.findOne({
-                attributes: ['token_order'],
-                where: { order: token }
+            const pago=await Pago.findOne({
+                attributes:['token_order'],
+                where: {order:token}
             })
-            const response = await axios.post(url, {}, {
+            const response=await axios.post(url, {}, {
                 headers: {
                     "Content-Type": 'application/json',
                     Authorization: `Bearer ${descrypt(pago.get('token_order'))}`
                 },
             })
             if (response.data.status === "COMPLETED") {
-                const paypalID = response.data.purchase_units[0].payments.captures[0].id;
-                const reference = JSON.parse(response.data.purchase_units[0].reference_id)
-                const sesionID = reference.sesionID
-                const pagoID = reference.pagoID
+                const   paypalID = response.data.purchase_units[0].payments.captures[0].id,
+                        reference = JSON.parse(response.data.purchase_units[0].reference_id),
+                        sesionID = reference.sesionID,
+                        pagoID = reference.pagoID
                 res.locals.conn.transaction().then(async tr => {
                     try {
-                        await Sesion.update({ estado: 'ACTIVO' }, {
-                            where: {
-                                ID: sesionID,
-                                estado: { [Op.not]: 'BAJA' }
+                        await Sesion.update({estado:'ACTIVO'},{
+                            where:{
+                                ID:sesionID,
+                                estado:{[Op.not]:'BAJA'}
                             },
                             transaction: tr
                         });
 
                         await Pago.update({
                             estado: 'PAGADO',
-                            fechaPago: new Date().toISOString(),
+                            fechaPago:Sequelize.literal('NOW()'),
                             paypalID,
-                            order: '',
-                            token_order: '',
-                            estado: 'PAGADO'
+                            order:null,
+                            token_order:null
                         }, {
-                            where: {
-                                ID: pagoID,
-
-                            },
-                            transaction: tr
+                            where:{ID:pagoID},
+                            transaction:tr
                         })
                         tr.commit();
                         // * En la respuesta de pago exitoso en realidad va un redirect a la pagina o donde sea
                         res.send("Pago exitoso: " + response.data.purchase_units[0].payments[0])
-                    } catch (error) {
-                        console.log(error);
+                    }catch(error){
                         tr.rollback();
                         res.send('Algo salio mal en capturar el pago')
                     }
@@ -190,71 +182,51 @@ class PaymentController {
                 }
             })
 
-            const data = await Sesion.findOne({
+            const data=await Sesion.findOne({
                 attributes: ['fecha'],
                 where: {
                     ID: body.sesionID,
                     estado: 'ACTIVO'
                 },
-                include: {
-                    model: Pago,
-                    as: 'pago',
+                include:{
+                    model:Pago,as:'pago',
                     attributes: ['monto', 'paypalID'],
-                    where: {
+                    where:{
                         ID: body.pagoID,
                         estado: 'PAGADO'
                     }
                 }
             })
-            if (data) {
-                const fecha = data.get('fecha');
-                const pago = data.get('pago');
+            if(data){
+                const   fecha = data.get('fecha'),
+                        pago = data.get('pago')
                 let fechaActual = new Date();
-                fechaActual = sumarDias(fechaActual, 2);
-                const fg = new Date(fecha).getTime() - fechaActual.getTime();
-                if (fg > 0) {
+                fechaActual = sumarDias(fechaActual,2);
+                const fg = new Date(fecha).getTime()-fechaActual.getTime();
+                if (fg>0){
                     const url = `${BASE_URL}/v2/payments/captures/${pago.paypalID}/refund`;
-                    const response = await axios.post(url, {}, {
+                    const response=await axios.post(url,{},{
                         headers: {
                             "Content-Type": 'application/json',
                             Authorization: `Bearer ${access_token}`
-                        },
+                        }
                     })
                     if (response.data.status === "COMPLETED") {
                         await Sesion.update({ 
                             estado: 'CANCELADA' 
-                        }, {
-                            where: {
-                                ID: body.sesionID  
-                            },
-                        });
+                        },{
+                            where:{ID:body.sesionID}
+                        })
 
-                        Pago.update({
+                        await Pago.update({
                             tipo:'DEVOLUCION',
                             paypalID:''
-                        }, {
-                            where: {
-                                ID: body.pagoID,
-                            }
+                        },{
+                            where:{ID:body.pagoID,}
                         })
-                        res.json({
-                            code: 201,
-                            msg: "Devolucion realizada con exito!"
-                        })
-                    } else {
-                        console.log(response.data);
-                        res.json({
-                            code: 500,
-                            msg: "Error al realizar devolucion: " + response.data.status
-                        })
-                    }
-                } else {
-                    res.json({
-                        code: 404,
-                        msg: "El reembolso es valido hasta 48hs antes de la sesion",
-                        fecha_sesion: fecha.toLocaleString()
-                    })
-                }
+                        res.json({code: 201,msg: "Devolucion realizada con exito!"})
+                    }else res.json({code: 500,msg: "Error al realizar devolucion: " + response.data.status})
+                }else res.json({code:404,msg:"El reembolso es valido hasta 48hs antes de la sesion",fecha_sesion:fecha.toLocaleString()})
             }
         } catch (error) {
             console.log(error);

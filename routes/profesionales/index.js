@@ -3,6 +3,7 @@ const 	router=require('express').Router(),
 		Op=Sequelize.Op,
 		CryptoJS=require('crypto-js'),
 		end=require('../functions').end,
+		config=require('../../../config'),
 		enviarEmail=require('../functions').enviarEmail,
 		obj='PROFESIONAL'
 
@@ -103,9 +104,7 @@ router.get('/mejor-puntaje/f/:f/t/:t/l/:l',(req,res)=>{
 
 
 /*------------------------POST--------------------------*/
-function encrypt(data){
-	return CryptoJS.AES.encrypt(data, process.env.KEY).toString();
-}
+function encrypt(data){return CryptoJS.AES.encrypt(data,config.KEY).toString()}
 
 router.post('/',(req,res)=>{
 	const 	body=req.body,
@@ -130,15 +129,15 @@ router.post('/',(req,res)=>{
 			titulo:body.titulo,
 			tipo_atencion:body.tipo_atencion,
 			resumen:body.resumen,
-			clientID:encrypt(body.clientID),
-			secret:encrypt(body.secret),
+			clientID:(body.clientID)?encrypt(body.clientID):null,
+			secret:(body.secret)?encrypt(body.secret):null,
 			informacion:body.informacion,
 			credencial:body.credencial
 		},{
 			include:{model:Credencial,as:'credencial'},
 			transaction:tr
 		}).then(data=>{
-			const ID= data.get('ID')
+			const ID=data.get('ID')
 			//EVENT
 			var query="CREATE EVENT codigo_"+body.credencial.codigo+ID+" ON SCHEDULE AT DATE_ADD(NOW(),INTERVAL 1 HOUR) DO "
 			query+="UPDATE credenciales SET codigo=null WHERE profesionalID="+ID+" AND codigo='"+body.credencial.codigo+"'"
@@ -207,7 +206,24 @@ router.put('/id/:id',(req,res)=>{
 		titulo:body.titulo,
 		tipo_atencion:body.tipo_atencion,
 		resumen:body.resumen,
-		informacion:body.informacion,
+		informacion:body.informacion
+	},{
+		where:{
+			ID:id,
+			estado:{[Op.not]:'BAJA'}
+		}
+	}).then(data=>{(data==0)?res.json({code:404}):res.status(201).json({code:201})
+	}).catch(err=>{end(res,err,'PUT',obj)})
+})
+
+router.put('/paypal/id/:id',(req,res)=>{
+	const 	id=String(req.params.id),
+			body=req.body,
+			Profesional=req.models.Profesional
+
+	Profesional.update({
+		clientID:body.clientID,
+		secret:body.secret,
 	},{
 		where:{
 			ID:id,
@@ -244,7 +260,7 @@ router.patch('/estado/id/:id',(req,res)=>{
 				estado:body.estado
 			},{
 				where:{
-					pacienteID:id,
+					profesionalID:id,
 					estado:{[Op.not]:'BAJA'}
 				},
 				transaction:tr

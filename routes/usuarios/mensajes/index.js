@@ -76,7 +76,7 @@ router.post('/',(req,res)=>{
 		message:body.message
 	}).then(data=>{
 		const id=data.get('ID')
-		res.json({code:201,msg:'',data:{id}})
+		res.json({code:201,data:{id}})
 	}).catch(err=>{end(res,err,'POST',obj)})
 })
 

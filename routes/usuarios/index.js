@@ -38,28 +38,6 @@ router.get('/',(req,res)=>{
 	}).catch(err=>{end(res,err,'GET',obj)})
 })
 
-router.get('/like/:l',(req,res)=>{
-   	const 	l='%'+String(req.params.l)+'%',
-   			Usuario=req.models.Usuario,
-			Mensaje=req.models.Mensaje
-
-	if(l.length<5) return res.json({code:400,msg:'Peticion incorrecta: Longitud minima 3 caracteres'})
-   	Usuario.findAll({
-		attributes: ['ID','nombre','user','estado'],
-		where: {
-			[Op.or]:[{
-				user:{[Op.like]:l}
-			},{
-				nombre:{[Op.like]:l}
-			}],
-			estado:{[Op.not]:'BAJA'}
-		},
-		order: [['lastSesion','DESC']],
-		limit:100
-	}).then(data=>{(!data.length)?res.json({code:404}):res.json({code:200,data})
-	}).catch(err=>{end(res,err,'GET',obj)})
-})
-
 router.get('/id/:id',(req,res)=>{
 	const 	id=String(req.params.id),
 			Usuario=req.models.Usuario
