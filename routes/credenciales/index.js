@@ -25,7 +25,7 @@ router.post('/login',(req,res)=>{
 		}
 	}).then(data=>{
 		if(!data||data.get('ID')==null){
-	    	res.json({code:404})
+	    	res.json({code:204})
 	    	return false
 		}
 
@@ -128,7 +128,7 @@ router.patch('/pass/id/:id',(req,res)=>{
 		}
 
 		Credencial.update({
-			pass:body.passNew
+			pass:body.newPass
 		},{
 			where:{
 				ID:id,
@@ -151,7 +151,7 @@ router.patch('/generar-codigo/id/(:id)?',(req,res)=>{
 	if(id!='undefined') where.ID=id
 	res.locals.conn.transaction().then(tr=>{
 		Credencial.findOne({
-			attributes:['ID','profesionalID','pacienteID','nombre','codigo'],
+			attributes:['ID','profesionalID','pacienteID'],
 			where:where,
 			transaction:tr
 		}).then(data=>{
@@ -160,56 +160,46 @@ router.patch('/generar-codigo/id/(:id)?',(req,res)=>{
 				return false
 			}
 
-			if((data.get('codigo')==""||data.get('codigo')==null)){
-				var codigo=String(Math.random()).slice(-5),
-					dato={
-						motivo:body.motivo,
-						credencial:{
-							nombre:data.get('nombre'),
-						}
-					}
-				where.ID=data.get('ID')
+			var codigo=String(Math.random()).slice(-5),
+				dato={}
+			where.ID=data.get('ID')
 
-				switch(body.motivo){
-					case 'email':
-						codigo = 'M-'+codigo
-						dato.codigo=codigo
-						dato.credencial.email=body.newMail
-						break;
-					case 'pass':
-						codigo = 'P-'+codigo
-						dato.codigo=codigo
-						dato.credencial.email=body.email
-						break;
-					default:
-						res.json({code:400,msg:'Motivo no valido'})
-						return false
-				}
-
-				var query="CREATE EVENT codigo_"+codigo.replace('-','')+where.ID+" ON SCHEDULE AT DATE_ADD(NOW(),INTERVAL 1 HOUR) DO "
-				query+="UPDATE credenciales SET codigo=null WHERE ID="+where.ID+" AND codigo='"+codigo+"'"
-				
-				Credencial.update({
-					codigo:codigo
-				},{
-					where:where,
-					transaction:tr
-				}).then(data=>{
-					if(data==0){
-						tr.rollback()
-						res.json({code:404,data:{patch:data}})
-						return false
-					}
-					res.locals.conn.query(query,{transaction:tr}).then(data1=>{
-						mails.newCodigo(dato)
-						tr.commit()
-						res.status(201).json({code:201,data:{patch:data}})	
-    				}).catch(err=>{end(res,err,'PATCH-EVENT',obj,tr)})
-    			}).catch(err=>{end(res,err,'PATCH',obj,tr)})
-			}else{
-				tr.rollback()
-				res.json({code:403,msg:'Código existente'})
+			switch(body.motivo){
+				case 'email':
+					codigo='E'+codigo
+					dato.codigo=codigo
+					dato.email=body.newEmail
+					break;
+				case 'pass':
+					codigo='P'+codigo
+					dato.codigo=codigo
+					dato.email=body.email
+					break;
+				default:
+					res.json({code:400,msg:'Motivo no valido'})
+					return false
 			}
+
+			var query="CREATE EVENT codigo_"+codigo+where.ID+" ON SCHEDULE AT DATE_ADD(NOW(),INTERVAL 1 HOUR) DO "
+			query+="UPDATE credenciales SET codigo=null WHERE ID="+where.ID+" AND codigo='"+codigo+"'"
+				
+			Credencial.update({
+				codigo:codigo
+			},{
+				where:where,
+				transaction:tr
+			}).then(data=>{
+				if(data==0){
+					tr.rollback()
+					res.json({code:404})
+					return false
+				}
+				res.locals.conn.query(query,{transaction:tr}).then(async data1=>{
+					await enviarEmail(require('../emails/index').mailCodigo(dato))
+					tr.commit()
+					res.status(201).json({code:201})	
+				}).catch(err=>{end(res,err,'PATCH-EVENT',obj,tr)})
+			}).catch(err=>{end(res,err,'PATCH',obj,tr)})
     	}).catch(err=>{end(res,err,'PATCH-GET',obj,tr)})
 	})
 })
@@ -233,12 +223,11 @@ router.patch('/cambiar-pass',(req,res)=>{
 				return false
 			}
 
-			const 	idN= data.get('ID'),
-					ncodigo = body.codigo.replace('-',''),
-					query = 'DROP EVENT IF EXISTS codigo_'+idN+'_'+ncodigo
+			const 	ID=data.get('ID'),
+					query='DROP EVENT IF EXISTS codigo_'+body.codigo+ID
 
 			Credencial.update({
-				password:body.password,
+				pass:body.pass,
 				codigo:null
 			},{
 				where:{
@@ -265,9 +254,10 @@ router.patch('/cambiar-pass',(req,res)=>{
 router.patch('/confirmar-email/id/:id',(req,res)=>{
 	const 	id=String(req.params.id),
 			body=req.body,
-		 	ncodigo=body.codigo.replace('-',''),
-			query='DROP EVENT IF EXISTS codigo_'+id+'_'+ncodigo,
-			Credencial=req.models.Credencial
+			query='DROP EVENT IF EXISTS codigo_'+body.codigo+id,
+			Credencial=req.models.Credencial,
+			Paciente=req.models.Paciente,
+			Profesional=req.models.Profesional
 
 	res.locals.conn.transaction().then(tr=>{
 		Credencial.update({
@@ -278,13 +268,20 @@ router.patch('/confirmar-email/id/:id',(req,res)=>{
 			where:{
 				ID:id,
 				codigo:body.codigo,
-				estado:{[Op.or]:['ACTIVO','PENDIENTE']}
+				estado:{[Op.in]:['ACTIVO','PENDIENTE','PENDIENTE-CODIGO']}
 			},
 			transaction:tr
-		}).then(data=>{
+		}).then(async data=>{
 			if(data==0){
 				tr.rollback()
 				res.json({code:404})
+				return false
+			}
+			try{
+				if(body.profesionalID) await Profesional.update({estado:'ACTIVO'},{where:{ID:body.profesionalID,estado:[Op.in]:['PENDIENTE-CODIGO','ACTIVO']},transaction:tr})
+				if(body.pacienteID) await Paciente.update({estado:'ACTIVO'},{where:{ID:body.pacienteID,estado:{[Op.in]:['PENDIENTE-CODIGO','ACTIVO']}},transaction:tr})
+			}catch(err){
+				end(res,err,'PATCH-EVENT',obj,tr)
 				return false
 			}
 
@@ -295,5 +292,6 @@ router.patch('/confirmar-email/id/:id',(req,res)=>{
     	}).catch(err=>{end(res,err,'PATCH',obj,tr)})
  	})
 })
+
 
 module.exports=router

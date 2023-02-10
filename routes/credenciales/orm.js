@@ -18,11 +18,8 @@ const model=conn=>{
       allowNull:false
     },
     token:Sequelize.STRING,
-    codigo:{
-        type:Sequelize.STRING,
-        allowNull:false
-    },
-    estado: Sequelize.ENUM('ACTIVO','PENDIENTE','INACTIVO','BAJA'),
+    codigo:Sequelize.STRING,
+    estado: Sequelize.ENUM('ACTIVO','PENDIENTE','INACTIVO','BAJA','PENDIENTE-CODIGO'),
     createdAt: Sequelize.DATE,
     updatedAt: Sequelize.DATE
   })
@@ -36,12 +33,12 @@ exports.relations=conn=>{
         Profesional=require('../profesionales/orm').model(conn).Profesional,
         Paciente=require('../pacientes/orm').model(conn).Paciente
 
-      Credencial.belongsTo(Comercio,{as:'comercios',foreignKey:'comercioID'})
-      Credencial.belongsTo(Consumidor,{as:'consumidores',foreignKey:'consumidorID'})
+      Credencial.belongsTo(Profesional,{as:'profesionales',foreignKey:'profesionalID'})
+      Credencial.belongsTo(Paciente,{as:'pacientes',foreignKey:'pacienteID'})
   
   return{
     Credencial,
-    Comercio,
-    Consumidor
+    Profesional,
+    Paciente
   }
 } 

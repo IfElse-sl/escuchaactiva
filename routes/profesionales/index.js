@@ -1,12 +1,10 @@
 const 	router=require('express').Router(),
 		Sequelize = require('sequelize'),
 		Op=Sequelize.Op,
-		dotenv=require('dotenv'),
 		CryptoJS=require('crypto-js'),
 		end=require('../functions').end,
 		enviarEmail=require('../functions').enviarEmail,
-		obj='PROFESIONAL';
-	dotenv.config();
+		obj='PROFESIONAL'
 
 router.all('/*',(req,res,next)=>{
 	const modulo=req.originalUrl.split('/')
@@ -53,12 +51,12 @@ router.get('/id/:id',(req,res)=>{
 
 router.get('/p/:p/l/:l',(req,res)=>{
 	const 	l=parseInt(req.params.l,10),p=parseInt(req.params.p)*l,
-			paisID=req.query.paisID,provinciaID=req.query.provinciaID,localidadID=req.query.localidadID,
+			query=req.query,
 			Profesional=req.models.Profesional
-	var where={estado:{[Op.not]:'BAJA'}}
-	if(paisID)where.paisID=paisID
-	if(provinciaID)where.provinciaID=provinciaID
-	if(localidadID)where.localidadID=localidadID
+	var where={estado:(query.estado)?query.estado:{[Op.not]:'BAJA'}}
+	if(query.paisID)where.paisID=query.paisID
+	if(query.provinciaID)where.provinciaID=query.provinciaID
+	if(query.localidadID)where.localidadID=query.localidadID
 
 	Profesional.findOne({
 		attributes:['ID','foto','nombre','telefono','genero','estado'],
@@ -113,7 +111,7 @@ router.post('/',(req,res)=>{
 	const 	body=req.body,
 			Profesional=req.models.Profesional,
 			Credencial=req.models.Credencial;
-	body.credencial.codigo='U-'+String(Math.random()).slice(-5)
+	body.credencial.codigo='U'+String(Math.random()).slice(-5)
 
 	res.locals.conn.transaction().then(tr=>{
 		Profesional.create({
@@ -142,7 +140,7 @@ router.post('/',(req,res)=>{
 		}).then(data=>{
 			const ID= data.get('ID')
 			//EVENT
-			var query="CREATE EVENT codigo_"+body.credencial.codigo.replace('-','')+ID+" ON SCHEDULE AT DATE_ADD(NOW(),INTERVAL 1 HOUR) DO "
+			var query="CREATE EVENT codigo_"+body.credencial.codigo+ID+" ON SCHEDULE AT DATE_ADD(NOW(),INTERVAL 1 HOUR) DO "
 			query+="UPDATE credenciales SET codigo=null WHERE profesionalID="+ID+" AND codigo='"+body.credencial.codigo+"'"
 
 			res.locals.conn.query(query,{transaction:tr}).then(async data1=>{
@@ -224,17 +222,44 @@ router.put('/id/:id',(req,res)=>{
 router.patch('/estado/id/:id',(req,res)=>{
 	const 	id=String(req.params.id),
 			body=req.body,
-			Profesional=req.models.Profesional
+			Profesional=req.models.Profesional,
+			Credencial=req.models.Credencial
 
-	Profesional.update({
-		estado:body.estado
-	},{
-		where:{
-			ID:id,
-			estado:{[Op.not]:'BAJA'}
-		}
-	}).then(data=>{(data==0)?res.json({code:404}):res.status(201).json({code:201})
-    }).catch(err=>{end(res,err,'PATCH',obj)})
+	res.locals.conn.transaction().then(tr=>{
+		Profesional.update({
+			estado:body.estado
+		},{
+			where:{
+				ID:id,
+				estado:{[Op.not]:'BAJA'}
+			},
+			transaction:tr
+		}).then(data=>{
+			if(data==0){
+				tr.rollback()
+				res.json({code:404})
+				return false
+			}
+			Credencial.update({
+				estado:body.estado
+			},{
+				where:{
+					pacienteID:id,
+					estado:{[Op.not]:'BAJA'}
+				},
+				transaction:tr
+			}).then(data=>{
+				if(data==0){
+					tr.rollback()
+					res.json({code:404})
+					return false
+				}
+				tr.commit()
+				res.status(201).json({code:201})
+			
+	    	}).catch(err=>{end(res,err,'PATCH-1',obj,tr)})
+	    }).catch(err=>{end(res,err,'PATCH',obj,tr)})
+	})
 })
 
 

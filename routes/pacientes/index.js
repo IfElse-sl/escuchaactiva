@@ -23,9 +23,7 @@ router.all('/*',(req,res,next)=>{
 router.get('/id/:id',(req,res)=>{
 	const 	id=String(req.params.id),
 			Paciente=req.models.Paciente,
-			Pais=req.models.Pais,
-			Provincia=req.models.Provincia,
-			Localidad=req.models.Localidad
+			Pais=req.models.Pais,Provincia=req.models.Provincia,Localidad=req.models.Localidad
 
 	Paciente.findOne({
 		attributes:['ID','foto','nombre','telefono','genero','estado'],
@@ -46,17 +44,19 @@ router.get('/id/:id',(req,res)=>{
 
 router.get('/p/:p/l/:l',(req,res)=>{
 	const 	l=parseInt(req.params.l,10),p=parseInt(req.params.p)*l,
-			paisID=req.query.paisID,provinciaID=req.query.provinciaID,localidadID=req.query.localidadID,
+			query=req.query,
 			Paciente=req.models.Paciente
-	var where={estado:{[Op.not]:'BAJA'}}
-	if(paisID)where.paisID=paisID
-	if(provinciaID)where.provinciaID=provinciaID
-	if(localidadID)where.localidadID=localidadID
+	var where={estado:(query.estado)?query.estado:{[Op.not]:'BAJA'}}
+	if(query.paisID)where.paisID=query.paisID
+	if(query.provinciaID)where.provinciaID=query.provinciaID
+	if(query.localidadID)where.localidadID=query.localidadID
 
-	Paciente.findOne({
+	Paciente.findAndCountAll({
 		attributes:['ID','foto','nombre','telefono','genero','estado'],
-		where
-	}).then(data=>{(!data)?res.json({code:404}):res.status(200).json({code:200,data})
+		where,
+		limit:[p,l],
+		order:[['ID','DESC']]
+	}).then(data=>{(!data.rows.length)?res.json({code:404}):res.status(200).json({code:200,data})
     }).catch(err=>{end(res,err,'GET',obj)})
 })
 
@@ -69,7 +69,7 @@ router.get('/cant',(req,res)=>{
     }).catch(err=>{end(res,err,'GET',obj)})
 })
 
-router.get('/mas-concurrentes/f/:f/t/:t/l/:l',(req,res)=>{
+router.get('/mas-recurrentes/f/:f/t/:t/l/:l',(req,res)=>{
 	const  	f=String(req.params.f)+" 00:00:00",t=String(req.params.t)+" 23:59:59",l=parseInt(req.params.l),
 			Paciente=req.models.Paciente,
 			Sesion=req.models.Sesion
@@ -86,7 +86,7 @@ router.get('/mas-concurrentes/f/:f/t/:t/l/:l',(req,res)=>{
 			attributes:[],
 			where:{
 				estado:{[Op.not]:'BAJA'},
-				createdAt:{[Op.between]:[f,t]}
+				fecha:{[Op.between]:[f,t]}
 			}
 		}
 	}).then(data=>{(!data.length)?res.json({code:204}):res.status(200).json({code:200,data})
@@ -99,7 +99,7 @@ router.post('/',(req,res)=>{
 	const 	body=req.body,
 			Paciente=req.models.Paciente,
 			Credencial=req.models.Credencial
-	body.credencial.codigo='U-'+String(Math.random()).slice(-5)
+	body.credencial.codigo='U'+String(Math.random()).slice(-5)
 
 	res.locals.conn.transaction().then(tr=>{
 		Paciente.create({
@@ -119,7 +119,7 @@ router.post('/',(req,res)=>{
 		}).then(data=>{
 			const ID= data.get('ID')
 			//EVENT
-			var query="CREATE EVENT codigo_paciente_"+ID+" ON SCHEDULE AT DATE_ADD(NOW(),INTERVAL 1 HOUR) DO "
+			var query="CREATE EVENT codigo_"+body.credencial.codigo+ID+" ON SCHEDULE AT DATE_ADD(NOW(),INTERVAL 1 HOUR) DO "
 			query+="UPDATE credenciales SET codigo=null WHERE pacienteID="+ID+" AND codigo='"+body.credencial.codigo+"'"
 
 			res.locals.conn.query(query,{transaction:tr}).then(async data1=>{		
@@ -197,17 +197,44 @@ router.put('/id/:id',(req,res)=>{
 router.patch('/estado/id/:id',(req,res)=>{
 	const 	id=String(req.params.id),
 			body=req.body,
-			Paciente=req.models.Paciente
+			Paciente=req.models.Paciente,
+			Credencial=req.models.Credencial
 
-	Paciente.update({
-		estado:body.estado
-	},{
-		where:{
-			ID:id,
-			estado:{[Op.not]:'BAJA'}
-		}
-	}).then(data=>{(data==0)?res.json({code:404}):res.status(201).json({code:201})
-    }).catch(err=>{end(res,err,'PATCH',obj)})
+	res.locals.conn.transaction().then(tr=>{
+		Paciente.update({
+			estado:body.estado
+		},{
+			where:{
+				ID:id,
+				estado:{[Op.not]:'BAJA'}
+			},
+			transaction:tr
+		}).then(data=>{
+			if(data==0){
+				tr.rollback()
+				res.json({code:404})
+				return false
+			}
+			Credencial.update({
+				estado:body.estado
+			},{
+				where:{
+					pacienteID:id,
+					estado:{[Op.not]:'BAJA'}
+				},
+				transaction:tr
+			}).then(data=>{
+				if(data==0){
+					tr.rollback()
+					res.json({code:404})
+					return false
+				}
+				tr.commit()
+				res.status(201).json({code:201})
+			
+	    	}).catch(err=>{end(res,err,'PATCH-1',obj,tr)})
+	    }).catch(err=>{end(res,err,'PATCH',obj,tr)})
+	})
 })
 
 

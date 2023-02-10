@@ -1,4 +1,4 @@
-const fs=require('fs'),nodemailer=require('nodemailer')
+const fs=require('fs'),nodemailer=require('nodemailer'),config=require('../../config')
 exports.end=(res,msg,type,obj,tr=null,body=null)=>{
     console.log('Error: ',type,obj,msg)
     let code=400,data={}
@@ -13,7 +13,7 @@ exports.end=(res,msg,type,obj,tr=null,body=null)=>{
     res.status(code).json({code,msg,data})
 }
 
-exports.notificacion=(body,prod)=>{
+exports.notificacion=(body)=>{
     var XMLHttpRequest=require("xmlhttprequest").XMLHttpRequest,
         xhr=new XMLHttpRequest()
     body=JSON.stringify(body)
@@ -32,8 +32,7 @@ exports.notificacion=(body,prod)=>{
         }
     })
 
-    var url=(prod)?"http://localhost:15000/api/notificaciones":"http://localhost:15000/api/notificaciones"
-    xhr.open("POST",url)
+    xhr.open("POST",config.HOST_NOTIF+"/api/notificaciones")
     xhr.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
     xhr.send(body)
 }

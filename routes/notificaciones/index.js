@@ -3,12 +3,12 @@ const 	router=require('express').Router(),
 		Op=Sequelize.Op,
 		fs=require('fs'),
 		io=require('socket.io-client'),
+		config=require('../../../config'),
 		end=require('../functions').end,
 		obj='NOTIFICACION'
 
 router.all('/*',(req,res,next)=>{
 	const modulo=req.originalUrl.split('/')
-	console.log("modulo[3]",modulo[3])
 	switch(modulo[3]){
 		case 'usuarios':
 			router.use('/'+modulo[3],require('./'+modulo[3]))
@@ -21,10 +21,10 @@ router.all('/*',(req,res,next)=>{
 })
 
 /*------------------------FUNCTION---------------------------*/
-const socketConnection=(prod=false,body='')=>{
+const socketConnection=(body='')=>{
 	//Se genera la conexion al puerto del socket
-	let host='https://crm.ifelsesl.com:4100'
-	if(!prod)host='http://repo.ifelse.com.ar:4100'
+	let host=config.HOST_NOTIF
+	console.log(host,config)
 	socket=io.connect(host,{secure:true,rejectUnauthorized:false,query: {usuarioID: 0}})
 	//nos conectamos al socket
 	socket.on('connect',()=>{
@@ -146,7 +146,6 @@ router.post('/',(req,res)=>{
 			descripcion:body.descripcion,
 			url:body.url,
 			tipo:body.tipo,
-			estado:body.estado,
 			notificaciones_usuarios:body.usuarios
 		},{
 			include:{
@@ -158,9 +157,7 @@ router.post('/',(req,res)=>{
 			const ID=data.get('ID')
 			body.ID = ID
 			tr.commit()
-			if(body.estado=='ACTIVO'){
-				socketConnection(res.locals.prod,body)
-			}
+			socketConnection(body)
 			res.json({code:201,data:{ID}})
 		}).catch(err=>{end(res,err,'POST',obj,tr)})
 	})

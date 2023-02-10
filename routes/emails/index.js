@@ -282,6 +282,24 @@ exports.mailCofirmacion=(body)=>{
     }
 }
 
+exports.mailCodigo=(body)=>{
+    return{
+        to:body.email,
+        asunto:"Requerimos verificación",
+        cuerpo:`<b style="font-size: 24px;">Codigo de validacion:</b><br>
+                <p><b style="font-size: 40px;">${body.codigo}</b></p>`,
+        foot:`<td bgcolor="#74a345" style="padding: 30px 30px 30px 30px;">
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+            <td style="color: #ffffff; font-family: Arial, sans-serif; font-size: 14px;" width="75%">
+            <p style="text-align: end;">Muchas Gracias!</p>
+            </td>
+            </tr>
+            </table>
+            </td>`  
+    }
+}
+
 
 // exports.mailComercioPendiente={
 //     asunto:"Verificacion pendiente",

@@ -19,6 +19,7 @@ const model=conn=>{
       type: Sequelize.ENUM('NORMAL','RIESGO'),
       allowNull:false
     },
+    snMultiple:Sequelize.BOOLEAN,
     estado:Sequelize.ENUM('ACTIVO','INACTIVO','BAJA'),
     createdAt:Sequelize.DATE,
     updatedAt:Sequelize.DATE
@@ -43,4 +44,3 @@ exports.relations=conn=>{
     Filtro
   }
 }
-

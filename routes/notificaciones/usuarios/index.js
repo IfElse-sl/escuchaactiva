@@ -23,7 +23,7 @@ router.get('/notificacionID/:id/p/:p/l/:l',(req,res)=>{
 			notificacionID:id,
 			estado:{[Op.not]:'BAJA'}
 		},
-		order:[['ID','DESC']],
+		//order:[['ID','DESC']],
 		limit:[p,l],
 		include:{
 			model:Usuario,

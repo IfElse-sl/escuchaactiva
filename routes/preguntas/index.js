@@ -33,7 +33,7 @@ router.get('/numero/:n/numero-riesgo/:nr',(req,res)=>{
 				tipo:t,
 				estado:'ACTIVO'
 			},
-			order:[[{Respuesta,'numero'},'ASC']],
+			order:[[Respuesta,'numero']],
 			include:{
 				model:Respuesta,
 				attributes:['ID','numero','titulo','riesgo'],
@@ -48,11 +48,8 @@ router.get('/',(req,res)=>{
 	const 	Pregunta=req.models.Pregunta
 
 	Pregunta.findAll({
-		attributes:['ID','titulo','tipo','snMultiple'],
-		where:{
-			numero:n,
-			estado:'ACTIVO'
-		},
+		attributes:['ID','numero','titulo','tipo','snMultiple'],
+		where:{estado:'ACTIVO'},
 		order:['numero']
 	}).then(data=>{(!data)?res.json({code:204}):res.json({code:200,data})
 	}).catch(err=>{end(res,err,'GET',obj)})
@@ -69,7 +66,7 @@ router.get('/ID/:id',(req,res)=>{
 			ID:id,
 			estado:{[Op.not]:'BAJA'}
 		},
-		order:['numero'],
+		order:[[Respuesta,'numero']],
 		include:{
 			model:Respuesta,
 			attributes:['ID','numero','titulo','riesgo','estado'],
