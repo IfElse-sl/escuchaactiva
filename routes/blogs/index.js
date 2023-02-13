@@ -22,21 +22,7 @@ router.all('/*',(req,res,next)=>{
 })
 
 /*------------------------GET---------------------------*/
-router.get('/page/:p',(req,res)=>{
-   	const 	p=parseInt(req.params.p)*4,
-			Blog=req.models.Blog,
-   			Categoria=req.models.Categoria
-
-   	Blog.findAndCountAll({
-		attributes:['ID','titulo','estado','views','imgPortada',[Sequelize.literal('DATE_FORMAT(createdAt,"%d de %b de %Y")'),'fecha']],
-		where:{estado:{[Op.not]:'BAJA'}},
-		order:[['ID','DESC']],
-		limit:[p,4]
-	}).then(data=>{(!data.rows.length)?res.status(404).json({code:404}):res.status(200).json({code:200,data})
-    }).catch(err=>{end(res,err,'GET',obj)})
-})
-
-router.get('/page/:p/limit/:l',(req,res)=>{
+router.get('/p/:p/l/:l',(req,res)=>{
    	const 	l=parseInt(req.params.l),p=parseInt(req.params.p)*l,
 			Blog=req.models.Blog,
    			Categoria=req.models.Categoria
@@ -77,8 +63,7 @@ router.get('/id/:id',(req,res)=>{
 			Tema=req.models.Tema,
 			TemasBlog=req.models.TemasBlog,
 			BlogFile=req.models.BlogFile,
-			Categoria=req.models.Categoria,
-			Materia = req.models.Materia
+			Categoria=req.models.Categoria
 
 	Blog.findOne({
 		attributes:['ID','categoriaID','imgPortada','titulo','introduccion','desarrollo','views','prioridad','estado',
@@ -91,9 +76,7 @@ router.get('/id/:id',(req,res)=>{
 			model:Tema,
 			attributes:['ID','nombre'],
 			required:false,
-			through:{
-				attributes:[]
-			}
+			through:{attributes:[]}
 		},{
 			model:BlogFile,as:'files',
 			attributes:['ID','titulo','url','createdAt'],
@@ -105,13 +88,99 @@ router.get('/id/:id',(req,res)=>{
 		},{
 			model:Categoria,
 			attributes:['ID','nombre']
-		},{
-			model:Materia,
-			attributes:['ID','nombre']
 		}]
 	}).then(data=>{(!data)?res.status(404).json({code:404}):res.status(200).json({code:200,data})
     }).catch(err=>{end(res,err,'GET',obj)})
 })
+
+router.get('/web/categoriaID/:id/p/:p/l/:l',(req,res)=>{
+	const	id=String(req.params.id),l=parseInt(req.params.l),p=(req.params.p)*l,
+			Blog=req.models.Blog,
+			Tema= req.models.Tema
+	if(l>20) return res.status(400).send('Limit demasiado grande')
+
+	Blog.findAndCountAll({
+		attributes:['ID','titulo','imgPortada','introduccion',
+			[Sequelize.fn('DATE_FORMAT', Sequelize.col('fecha'), '%d de %b de %Y'), 'fecha']],
+		where:{
+			categoriaID:id,
+			estado:'ACTIVO'
+		},
+		order:[['ID','DESC']],
+		limit:[p,l],
+		include:[{
+			model:Tema,
+			attributes:['ID','nombre'],
+			required:false,
+			through:{attributes:[]}
+		}]
+	}).then(data=>{(!data.rows.length)?res.status(404).send('Sin datos'):res.status(200).json(data)
+	}).catch(err=>{end(res,err,'GET',obj)})
+})
+
+router.get('/web/relacionadas/ID/:id/categoriaID/:cat/l/:l',(req,res)=>{
+	const 	cat=String(req.params.cat),id=String(req.params.id),l=parseInt(req.params.l),
+			Blog=req.models.Blog
+	if(l>10) return res.status(400).send('Limit demasiado grande')
+
+	Blog.findAll({
+		attributes:['ID','titulo','imgPortada','introduccion'],
+		where:{
+			ID:{[Op.ne]:id},
+			categoriaID:cat,
+			estado:'ACTIVO'
+		},
+		order:[['ID','DESC']],
+		limit:l
+	}).then(data=>{(!data.length)?res.status(404).send('Sin datos'):res.status(200).json(data)
+	}).catch(err=>{end(res,err,'GET',obj)})
+})
+
+router.get('/web/id/:id',(req,res)=>{
+	const 	id=String(req.params.id),
+			Blog=req.models.Blog,
+			BlogFile=req.models.BlogFile,
+			TemasBlog=req.models.TemasBlog,
+			Tema=req.models.Tema,
+			Categoria=req.models.Categoria
+
+	Blog.findOne({
+		attributes:['ID','imgPortada','titulo','introduccion','desarrollo',
+			[Sequelize.fn('DATE_FORMAT',Sequelize.col('fecha'),'%d/%m/%Y'),'fecha'],'views','createdAt'],
+		where:{
+			ID:id,
+			estado:'ACTIVO'
+		},
+		include:[{
+			model:Categoria,
+			attributes:['ID','nombre']
+		},{
+			model:Tema,
+			attributes:['ID','nombre'],
+			required:false,
+			through:{attributes:[]}
+		},{
+			model:BlogFile,as:'files',
+			attributes:['ID','titulo','url'],
+			where:{estado:'ACTIVO'},
+			required:false
+		}]
+	}).then(data=>{
+		if(!data){
+			res.status(404).send('ID no encontrado')
+			return false
+		}
+		res.status(200).json(data)
+
+		Blog.update({views:Sequelize.literal('views+1')},{where:{ID:id}
+		}).then(data=>{console.log("Se actualizo el view de noticias")
+		}).catch(err=>{
+			console.log('Error al recuperar '+obj+'. '+err)
+			fs.appendFile('error.txt','{date: '+new Date()+'}{error: Error al recuperar '+obj+'. '+err+'}\n',(err)=>{})
+		})
+	}).catch(err=>{end(res,err,'GET',obj)})
+})
+
 
 /*------------------------POST--------------------------*/
 router.post('/',(req,res)=>{
@@ -131,7 +200,6 @@ router.post('/',(req,res)=>{
 	res.locals.conn.transaction().then(tr=>{
 		Blog.create({
 			categoriaID:body.categoriaID,
-			materiaID:body.materiaID,
 			createdID:body.createdID,
 			imgPortada:body.imgPortada,
 			titulo:body.titulo,
@@ -163,10 +231,9 @@ router.post('/',(req,res)=>{
 router.post('/search/page/:p/limit/:l',(req,res)=>{
 	const 	body=req.body,
 			like='%'+body.like+'%',
-			l= parseInt(req.params.l),p=(req.params.p)*l,
+			l= parseInt(req.params.l),p=parseInt(req.params.p)*l,
 			Blog=req.models.Blog,
 			Categoria=req.models.Categoria
-	
 	if(like.length<5||l>100) return res.status(400).json({code:400,msg:'Longitud o limit incorrectos'})
 
 	Blog.findAndCountAll({
@@ -200,13 +267,11 @@ router.put('/id/:id',(req,res)=>{
 	res.locals.conn.transaction().then(tr=>{
 		Blog.update({
 			categoriaID:body.categoriaID,
-			materiaID:body.materiaID,
 			titulo:body.titulo,
 			introduccion:body.introduccion,
 			desarrollo:body.desarrollo,
 			imgPortada:body.imgPortada,
-			estado:body.estado,
-			temas_blog:body.temas
+			estado:body.estado
 		},{
 			where:{
 				ID:id,

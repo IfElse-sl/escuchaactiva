@@ -11,8 +11,8 @@ router.all('/*',function(req,res,next){
 
 
 /*------------------------GET---------------------------*/
-router.get('/page/:p/limit/:l',(req,res)=>{
-   	const 	l=parseInt(req.params.l),p=(req.params.p-1)*l,
+router.get('/p/:p/l/:l',(req,res)=>{
+   	const 	l=parseInt(req.params.l),p=(req.params.p)*l,
 			Tema=req.models.Tema
 
 	if(l>100) return res.json({code:400,msg:'Limit debe ser menor a 100'})
@@ -25,8 +25,8 @@ router.get('/page/:p/limit/:l',(req,res)=>{
     }).catch(err=>{end(res,err,'GET',obj)})
 })
 
-router.get('/to-select/page/:p/limit/:l',(req,res)=>{
-   	const 	l=parseInt(req.params.l),p=(req.params.p-1)*l,
+router.get('/to-select/p/:p/l/:l',(req,res)=>{
+   	const 	l=parseInt(req.params.l),p=(req.params.p)*l,
 			Tema=req.models.Tema
 
 	if(l>100) return res.json({code:400,msg:'Limit debe ser menor a 100'})
@@ -53,17 +53,6 @@ router.get('/id/:id',(req,res)=>{
     }).catch(err=>{end(res,err,'GET',obj)})
 })
 
-router.get('/',(req,res)=>{
-   	const Tema=req.models.Tema
-
-   	Tema.findAll({
-		attributes:['ID','nombre','estado'],
-		where:{estado:{[Op.not]:'BAJA'}},
-		order:[['ID','DESC']]
-	}).then(data=>{(!data.length)?res.json({code:404}):res.json({code:200,data})
-    }).catch(err=>{end(res,err,'GET',obj)})
-})
-
 
 /*------------------------POST--------------------------*/
 router.post('/',(req,res)=>{
@@ -78,7 +67,7 @@ router.post('/',(req,res)=>{
     }).catch(err=>{end(res,err,'POST',obj)})
 })
 
-router.post('/search/page/:p/limit/:l',(req,res)=>{
+router.post('/search/p/:p/l/:l',(req,res)=>{
    	const 	l=parseInt(req.params.l),p=(req.params.p-1)*l,
 			like='%'+req.body.like+'%',
 			Tema=req.models.Tema

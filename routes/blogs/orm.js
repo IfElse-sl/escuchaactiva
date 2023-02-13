@@ -11,10 +11,6 @@ const model=conn=>{
       type: Sequelize.INTEGER,
       allowNull:false
     },
-    materiaID:{
-      type: Sequelize.INTEGER,
-      allowNull:false
-    },
     createdID:{
       type: Sequelize.INTEGER,
       allowNull:false
@@ -51,12 +47,10 @@ exports.relations=conn=>{
         Categoria=require('./categorias/orm').model(conn).Categoria,
         Temas=require('./temas/orm').model(conn),
         Tema=Temas.Tema,
-        TemasBlog=Temas.TemasBlog,
-        Materia=require('../materias/orm').model(conn).Materia
+        TemasBlog=Temas.TemasBlog
 
   Blog.hasMany(BlogFile,{as:'files'})
   Blog.belongsTo(Categoria)
-  Blog.belongsTo(Materia)
   Blog.belongsTo(Usuario,{foreignKey:'createdID'})
   //Blog.hasMany(TemasBlog)
   //TemasBlog.belongsTo(Tema)
@@ -69,8 +63,6 @@ exports.relations=conn=>{
     Usuario,
     BlogFile,
     Categoria,
-    Tema,
-    Materia,
-    TemasBlog
+    Tema,TemasBlog
   }
 }
