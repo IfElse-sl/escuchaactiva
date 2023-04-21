@@ -59,8 +59,8 @@ router.get('/p/:p/l/:l',(req,res)=>{
 	if(query.provinciaID)where.provinciaID=query.provinciaID
 	if(query.localidadID)where.localidadID=query.localidadID
 
-	Profesional.findOne({
-		attributes:['ID','foto','nombre','telefono','genero','estado'],
+	Profesional.findAndCountAll({
+		attributes:['ID','nombre','telefono','tipo_atencion','puntaje','estado'],
 		where
 	}).then(data=>{(!data)?res.json({code:404}):res.status(200).json({code:200,data})
     }).catch(err=>{end(res,err,'GET',obj)})

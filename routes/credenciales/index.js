@@ -16,7 +16,7 @@ router.all('/*',(req,res,next)=>{
 router.post('/login',(req,res)=>{
 	const 	body=req.body,
 			Credencial=req.models.Credencial
-
+					console.log("body",body)
 	Credencial.findOne({
 		attributes:['ID','pacienteID','profesionalID','pass','email','estado'],
 		where:{
@@ -24,6 +24,7 @@ router.post('/login',(req,res)=>{
 			estado:{[Op.not]:'BAJA'}
 		}
 	}).then(data=>{
+
 		if(!data||data.get('ID')==null){
 	    	res.json({code:204})
 	    	return false
@@ -278,7 +279,7 @@ router.patch('/confirmar-email/id/:id',(req,res)=>{
 				return false
 			}
 			try{
-				if(body.profesionalID) await Profesional.update({estado:'ACTIVO'},{where:{ID:body.profesionalID,estado:[Op.in]:['PENDIENTE-CODIGO','ACTIVO']},transaction:tr})
+				if(body.profesionalID) await Profesional.update({estado:'ACTIVO'},{where:{ID:body.profesionalID,estado:{[Op.in]:['PENDIENTE-CODIGO','ACTIVO']}},transaction:tr})
 				if(body.pacienteID) await Paciente.update({estado:'ACTIVO'},{where:{ID:body.pacienteID,estado:{[Op.in]:['PENDIENTE-CODIGO','ACTIVO']}},transaction:tr})
 			}catch(err){
 				end(res,err,'PATCH-EVENT',obj,tr)
